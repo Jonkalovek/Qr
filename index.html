@@ -28,7 +28,7 @@
 
 <div class="card">
     <h1>Szybki Generator QR</h1>
-    <p>Wybierz plik do 2GB+. Po wysłaniu wygeneruje się kod QR, który automatycznie rozpocznie pobieranie na drugim urządzeniu.</p>
+    <p>Wybierz plik do 2GB. Kod QR wygeneruje się bezpośrednio z bezpiecznego połączenia.</p>
     
     <div class="file-box" onclick="document.getElementById('fileInput').click()">
         <span style="font-size: 40px;">📁</span>
@@ -82,8 +82,7 @@
         progressContainer.style.display = "block";
 
         const formData = new FormData();
-        formData.append('reqtype', 'fileupload');
-        formData.append('fileToUpload', plik);
+        formData.append('file', plik);
 
         const xhr = new XMLHttpRequest();
         
@@ -100,36 +99,40 @@
             btn.disabled = false;
 
             if (xhr.status === 200) {
-                const linkDoPobrania = xhr.responseText.trim();
-                
-                if (linkDoPobrania && linkDoPobrania.startsWith('http')) {
-                    const context = canvas.getContext('2d');
-                    context.clearRect(0, 0, canvas.width, canvas.height);
+                try {
+                    const data = JSON.parse(xhr.responseText);
+                    if (data.success && data.link) {
+                        const context = canvas.getContext('2d');
+                        context.clearRect(0, 0, canvas.width, canvas.height);
 
-                    new QRious({
-                        element: canvas,
-                        value: linkDoPobrania,
-                        size: 250,
-                        level: 'H'
-                    });
-                    
-                    result.style.display = "block";
-                } else {
-                    alert("Serwer zwrócił niepoprawną odpowiedź.");
+                        // Generowanie kodu QR
+                        new QRious({
+                            element: canvas,
+                            value: data.link,
+                            size: 250,
+                            level: 'H'
+                        });
+                        
+                        result.style.display = "block";
+                    } else {
+                        alert("Błąd serwera: brak linku zwrotnego.");
+                    }
+                } catch(e) {
+                    alert("Wystąpił błąd przy przetwarzaniu pliku.");
                 }
             } else {
-                alert("Błąd połączenia z serwerem. Spróbuj ponownie.");
+                alert("Połączenie odrzucone. Plik może być za duży lub serwer jest przeciążony.");
             }
         });
 
         xhr.addEventListener('error', function() {
             progressContainer.style.display = "none";
             btn.disabled = false;
-            alert("Wysyłanie przerwane. Zresetuj stronę i spróbuj ponownie.");
+            alert("Wysyłanie przerwane. Spróbuj użyć innego połączenia sieciowego.");
         });
 
-        // Używamy stabilnego i odblokowanego proxy dla bezpiecznych stron GitHub (.github.io)
-        xhr.open('POST', 'https://corsproxy.io/?' + encodeURIComponent('https://catbox.moe/user/api.php'));
+        // Bezpośrednie wysyłanie na oficjalne API file.io z obsługą HTTPS i brakiem blokad CORS
+        xhr.open('POST', 'https://file.io/');
         xhr.send(formData);
     }
 </script>
