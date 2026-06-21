@@ -82,7 +82,8 @@
         progressContainer.style.display = "block";
 
         const formData = new FormData();
-        formData.append('file', plik);
+        formData.append('reqtype', 'fileupload');
+        formData.append('fileToUpload', plik);
 
         const xhr = new XMLHttpRequest();
         
@@ -99,12 +100,9 @@
             btn.disabled = false;
 
             if (xhr.status === 200) {
-                const data = JSON.parse(xhr.responseText);
-                if (data.success && data.id) {
-                    // Zmiana linku na bezpośredni stream - po zeskanowaniu plik pobiera się OD RAZU, bez wchodzenia na stronę Pixeldrain
-                    const linkDoPobrania = "https://pixeldrain.com/api/file/" + data.id + "?download";
-                    
-                    // Wyczyszczenie starego kodu i wyrysowanie nowego
+                const linkDoPobrania = xhr.responseText.trim();
+                
+                if (linkDoPobrania && linkDoPobrania.startsWith('http')) {
                     const context = canvas.getContext('2d');
                     context.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -117,20 +115,21 @@
                     
                     result.style.display = "block";
                 } else {
-                    alert("Serwer odrzucił plik. Spróbuj mniejszego formatu.");
+                    alert("Serwer zwrócił niepoprawną odpowiedź.");
                 }
             } else {
-                alert("Błąd połączenia. Spróbuj ponownie.");
+                alert("Błąd połączenia z serwerem. Spróbuj ponownie.");
             }
         });
 
         xhr.addEventListener('error', function() {
             progressContainer.style.display = "none";
             btn.disabled = false;
-            alert("Wysyłanie przerwane. Upewnij się, że masz stabilne połączenie sieciowe.");
+            alert("Wysyłanie przerwane. Zresetuj stronę i spróbuj ponownie.");
         });
 
-        xhr.open('POST', 'https://pixeldrain.com/api/file');
+        // Używamy stabilnego i odblokowanego proxy dla bezpiecznych stron GitHub (.github.io)
+        xhr.open('POST', 'https://corsproxy.io/?' + encodeURIComponent('https://catbox.moe/user/api.php'));
         xhr.send(formData);
     }
 </script>
