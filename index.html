@@ -28,7 +28,7 @@
 
 <div class="card">
     <h1>Szybki Generator QR</h1>
-    <p>Wybierz plik do 2GB. Kod QR wygeneruje się bezpośrednio z bezpiecznego połączenia.</p>
+    <p>Wybierz plik do 2GB+. Wykorzystujemy stabilne serwery GoFile bez limitów i blokad sieciowych.</p>
     
     <div class="file-box" onclick="document.getElementById('fileInput').click()">
         <span style="font-size: 40px;">📁</span>
@@ -37,11 +37,11 @@
     </div>
     
     <input type="file" id="fileInput" onchange="pokazPlik(this)">
-    <button id="btn" onclick="wyslijPlik()" disabled>Generuj Kod QR</button>
+    <button id="btn" onclick="rozpocznijWysylanie()" disabled>Generuj Kod QR</button>
     
     <div class="progress-container" id="progressContainer">
         <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
-        <div class="progress-text" id="progressText">Wysyłanie: 0%</div>
+        <div class="progress-text" id="progressText">Inicjalizacja...</div>
     </div>
     
     <div id="result">
@@ -67,19 +67,44 @@
         }
     }
 
-    function wyslijPlik() {
+    function rozpocznijWysylanie() {
         if (!plik) return;
         
         const btn = document.getElementById('btn');
         const result = document.getElementById('result');
         const progressContainer = document.getElementById('progressContainer');
-        const progressFill = document.getElementById('progressFill');
         const progressText = document.getElementById('progressText');
-        const canvas = document.getElementById('qrCanvas');
         
         btn.disabled = true;
         result.style.display = "none";
         progressContainer.style.display = "block";
+        progressText.innerText = "Szukanie wolnego serwera...";
+
+        // KROK 1: Pobieramy aktualnie najlepszy serwer od GoFile API
+        fetch('https://api.gofile.io/servers')
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === "ok" && data.data.servers.length > 0) {
+                    const najlepszySerwer = data.data.servers[0].name;
+                    wyslijNaSerwer(najlepszySerwer);
+                } else {
+                    throw new Error("Brak wolnych serwerów");
+                }
+            })
+            .catch(err => {
+                progressContainer.style.display = "none";
+                btn.disabled = false;
+                alert("Nie udało się połączyć z serwerem GoFile. Spróbuj za chwilę.");
+            });
+    }
+
+    function wyslijNaSerwer(serwer) {
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const progressContainer = document.getElementById('progressContainer');
+        const btn = document.getElementById('btn');
+        const result = document.getElementById('result');
+        const canvas = document.getElementById('qrCanvas');
 
         const formData = new FormData();
         formData.append('file', plik);
@@ -100,39 +125,41 @@
 
             if (xhr.status === 200) {
                 try {
-                    const data = JSON.parse(xhr.responseText);
-                    if (data.success && data.link) {
+                    const res = JSON.parse(xhr.responseText);
+                    if (res.status === "ok" && res.data.downloadPage) {
+                        const linkDoPobrania = res.data.downloadPage;
+                        
                         const context = canvas.getContext('2d');
                         context.clearRect(0, 0, canvas.width, canvas.height);
 
-                        // Generowanie kodu QR
+                        // Generowanie kodu QR z bezpośredniego linku GoFile
                         new QRious({
                             element: canvas,
-                            value: data.link,
+                            value: linkDoPobrania,
                             size: 250,
                             level: 'H'
                         });
                         
                         result.style.display = "block";
                     } else {
-                        alert("Błąd serwera: brak linku zwrotnego.");
+                        alert("Błąd serwera: Serwer nie zwrócił linku.");
                     }
                 } catch(e) {
-                    alert("Wystąpił błąd przy przetwarzaniu pliku.");
+                    alert("Błąd przetwarzania danych z serwera.");
                 }
             } else {
-                alert("Połączenie odrzucone. Plik może być za duży lub serwer jest przeciążony.");
+                alert(`Błąd serwera. Status: ${xhr.status}`);
             }
         });
 
         xhr.addEventListener('error', function() {
             progressContainer.style.display = "none";
             btn.disabled = false;
-            alert("Wysyłanie przerwane. Spróbuj użyć innego połączenia sieciowego.");
+            alert("Połączenie zostało przerwane. Sprawdź internet w telefonie.");
         });
 
-        // Bezpośrednie wysyłanie na oficjalne API file.io z obsługą HTTPS i brakiem blokad CORS
-        xhr.open('POST', 'https://file.io/');
+        // KROK 2: Wysyłanie pliku na przydzielony, najszybszy serwer
+        xhr.open('POST', `https://${serwer}.gofile.io/contents/uploadfile`);
         xhr.send(formData);
     }
 </script>
